@@ -201,10 +201,19 @@ nsis:
 # Linux x64 ships AppImage (electron-updater's latest-linux.yml) and a deb.
 # Arm stays disabled until the native dependency set is verified on arm runners.
 linux:
-  artifactName: ${productName}-${version}-${arch}.${ext}
+  # package.json name is scoped (@pond/desktop); AppImage paths cannot use @.
+  executableName: Pond
+  syncDesktopName: true
+  # Keep x64 in the filename (AppImage's default arch token is x86_64).
+  artifactName: ${productName}-${version}-x64.${ext}
   category: Utility
+  maintainer: Raphael Salaja <raphaelsalaja@gmail.com>
   mimeTypes:
     - application/x-pond-library
+  desktop:
+    entry:
+      Name: Pond
+      StartupWMClass: Pond
   fileAssociations:
     - ext: pond
       name: Pond Library

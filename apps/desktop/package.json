@@ -1,6 +1,7 @@
 {
   "name": "@pond/desktop",
   "productName": "Pond",
+  "desktopName": "Pond.desktop",
   "version": "1.6.3",
   "private": true,
   "type": "module",
