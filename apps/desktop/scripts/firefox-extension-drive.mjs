@@ -69,9 +69,10 @@ const site = createServer((_, response) => {
 });
 await new Promise((resolve) => site.listen(0, "127.0.0.1", resolve));
 const address = site.address();
-if (!address || typeof address === "string")
-  throw new Error("Fixture page did not bind.");
-const pageUrl = `http://127.0.0.1:${address.port}/`;
+const listenPort =
+  address != null && "port" in address ? address.port : undefined;
+if (listenPort === undefined) throw new Error("Fixture page did not bind.");
+const pageUrl = `http://127.0.0.1:${listenPort}/`;
 
 const xauthority =
   process.env.XAUTHORITY || join(process.env.HOME ?? "", ".Xauthority");
@@ -111,11 +112,12 @@ const base = `http://127.0.0.1:${portLine}`;
 let sessionId = "";
 
 async function webdriver(method, path, body) {
-  const response = await fetch(`${base}${path}`, {
-    method,
-    headers: body ? { "content-type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const init = { method };
+  if (body !== undefined && method !== "GET" && method !== "HEAD") {
+    init.headers = { "content-type": "application/json" };
+    init.body = JSON.stringify(body);
+  }
+  const response = await fetch(`${base}${path}`, init);
   const text = await response.text();
   if (!response.ok) {
     throw new Error(`${method} ${path} failed (${response.status}): ${text}`);
@@ -124,9 +126,8 @@ async function webdriver(method, path, body) {
 }
 
 function payloadValue(payload) {
-  return payload && typeof payload === "object" && "value" in payload
-    ? payload.value
-    : payload;
+  if (payload != null && "value" in payload) return payload.value;
+  return payload;
 }
 
 async function script(source, context) {
