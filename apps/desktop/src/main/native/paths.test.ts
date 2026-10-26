@@ -93,4 +93,17 @@ describe("nativeSocketPath", () => {
       /Library[\\/]Application Support[\\/]Pond[\\/]native\.sock$/,
     );
   });
+
+  it("uses the XDG config directory on Linux", async () => {
+    const previous = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = "/tmp/xdg-config";
+    try {
+      await expect(nativeSocketPath("linux")).resolves.toBe(
+        "/tmp/xdg-config/Pond/native.sock",
+      );
+    } finally {
+      if (previous === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = previous;
+    }
+  });
 });
