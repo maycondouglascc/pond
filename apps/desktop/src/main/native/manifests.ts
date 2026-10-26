@@ -212,6 +212,9 @@ export async function writeNativeHostManifests(
   writeDarwinNativeHostManifests(hostPath, dependencies);
 }
 
+/** Chromium hosts have no app-bundle gate, so this stays empty and typed for the shared target list. */
+const NO_DARWIN_APPS: readonly string[] = [];
+
 function writeDarwinNativeHostManifests(
   hostPath: string,
   dependencies: NativeHostManifestDependencies,
@@ -220,7 +223,7 @@ function writeDarwinNativeHostManifests(
   const targets = [
     ...DARWIN_CHROMIUM_NMH_DIRS.map((dir) => ({
       dir,
-      apps: [] as readonly string[],
+      apps: NO_DARWIN_APPS,
       body: chromiumNativeHostManifest(hostPath),
     })),
     ...DARWIN_FIREFOX_NMH_TARGETS.map((target) => ({
