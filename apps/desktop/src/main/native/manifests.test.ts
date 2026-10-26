@@ -265,24 +265,25 @@ describe("native host manifests", () => {
       },
     });
 
+    const chromeManifest = join(
+      home,
+      ".config/google-chrome/NativeMessagingHosts/so.pond.host.json",
+    );
+    const firefoxManifest = join(
+      home,
+      ".mozilla/native-messaging-hosts/so.pond.host.json",
+    );
     expect(registry).toEqual([]);
-    expect([...writes.keys()].sort()).toEqual([
-      "/home/test/.config/google-chrome/NativeMessagingHosts/so.pond.host.json",
-      "/home/test/.mozilla/native-messaging-hosts/so.pond.host.json",
-    ]);
-    expect(JSON.parse(writes.get([...writes.keys()][0] ?? "") ?? "")).toEqual(
+    expect([...writes.keys()].sort()).toEqual(
+      [chromeManifest, firefoxManifest].sort(),
+    );
+    expect(JSON.parse(writes.get(chromeManifest) ?? "")).toEqual(
       expect.objectContaining({
         path: hostPath,
         allowed_origins: expect.any(Array),
       }),
     );
-    expect(
-      JSON.parse(
-        writes.get(
-          "/home/test/.mozilla/native-messaging-hosts/so.pond.host.json",
-        ) ?? "",
-      ),
-    ).toEqual(
+    expect(JSON.parse(writes.get(firefoxManifest) ?? "")).toEqual(
       expect.objectContaining({
         path: hostPath,
         allowed_extensions: ["desktop@pond.so"],

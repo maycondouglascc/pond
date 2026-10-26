@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   createWindowsUserSidResolver,
@@ -99,7 +100,7 @@ describe("nativeSocketPath", () => {
     process.env.XDG_CONFIG_HOME = "/tmp/xdg-config";
     try {
       await expect(nativeSocketPath("linux")).resolves.toBe(
-        "/tmp/xdg-config/Pond/native.sock",
+        join("/tmp/xdg-config", "Pond", "native.sock"),
       );
     } finally {
       if (previous === undefined) delete process.env.XDG_CONFIG_HOME;
