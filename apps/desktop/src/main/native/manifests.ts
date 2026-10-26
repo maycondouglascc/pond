@@ -15,7 +15,7 @@ const HOST_FILENAME = `${NATIVE_HOST_NAME}.json`;
 const FIREFOX_HOST_FILENAME = `${NATIVE_HOST_NAME}.firefox.json`;
 const execFileAsync = promisify(execFile);
 
-const CHROMIUM_NMH_DIRS = [
+const DARWIN_CHROMIUM_NMH_DIRS = [
   "Library/Application Support/Google/Chrome/NativeMessagingHosts",
   "Library/Application Support/Google/Chrome Canary/NativeMessagingHosts",
   "Library/Application Support/Google/Chrome for Testing/NativeMessagingHosts",
@@ -27,7 +27,19 @@ const CHROMIUM_NMH_DIRS = [
   "Library/Application Support/Vivaldi/NativeMessagingHosts",
 ] as const;
 
-const FIREFOX_NMH_TARGETS = [
+const LINUX_CHROMIUM_NMH_DIRS = [
+  ".config/google-chrome/NativeMessagingHosts",
+  ".config/google-chrome-beta/NativeMessagingHosts",
+  ".config/google-chrome-unstable/NativeMessagingHosts",
+  ".config/chromium/NativeMessagingHosts",
+  ".config/BraveSoftware/Brave-Browser/NativeMessagingHosts",
+  ".config/microsoft-edge/NativeMessagingHosts",
+  ".config/microsoft-edge-beta/NativeMessagingHosts",
+  ".config/microsoft-edge-dev/NativeMessagingHosts",
+  ".config/vivaldi/NativeMessagingHosts",
+] as const;
+
+const DARWIN_FIREFOX_NMH_TARGETS = [
   {
     dir: "Library/Application Support/Mozilla/NativeMessagingHosts",
     apps: [
@@ -52,6 +64,14 @@ const FIREFOX_NMH_TARGETS = [
     dir: "Library/Application Support/Floorp/NativeMessagingHosts",
     apps: ["Floorp.app"],
   },
+] as const;
+
+/** Firefox on Linux uses a hyphenated directory under ~/.mozilla. */
+const LINUX_FIREFOX_NMH_DIRS = [
+  ".mozilla/native-messaging-hosts",
+  ".librewolf/native-messaging-hosts",
+  ".floorp/native-messaging-hosts",
+  ".zen/native-messaging-hosts",
 ] as const;
 
 export const WINDOWS_NATIVE_MESSAGING_REGISTRY_KEYS = [
@@ -165,7 +185,11 @@ export async function writeNativeHostManifests(
   overrides: Partial<NativeHostManifestDependencies> = {},
 ): Promise<void> {
   const dependencies = { ...defaultDependencies, ...overrides };
-  if (dependencies.platform !== "darwin" && dependencies.platform !== "win32") {
+  if (
+    dependencies.platform !== "darwin" &&
+    dependencies.platform !== "win32" &&
+    dependencies.platform !== "linux"
+  ) {
     return;
   }
 
@@ -180,14 +204,26 @@ export async function writeNativeHostManifests(
     return;
   }
 
+  if (dependencies.platform === "linux") {
+    writeLinuxNativeHostManifests(hostPath, dependencies);
+    return;
+  }
+
+  writeDarwinNativeHostManifests(hostPath, dependencies);
+}
+
+function writeDarwinNativeHostManifests(
+  hostPath: string,
+  dependencies: NativeHostManifestDependencies,
+): void {
   const home = dependencies.home();
   const targets = [
-    ...CHROMIUM_NMH_DIRS.map((dir) => ({
+    ...DARWIN_CHROMIUM_NMH_DIRS.map((dir) => ({
       dir,
-      apps: [],
+      apps: [] as readonly string[],
       body: chromiumNativeHostManifest(hostPath),
     })),
-    ...FIREFOX_NMH_TARGETS.map((target) => ({
+    ...DARWIN_FIREFOX_NMH_TARGETS.map((target) => ({
       ...target,
       body: firefoxNativeHostManifest(hostPath),
     })),
@@ -200,6 +236,41 @@ export async function writeNativeHostManifests(
         dependencies.exists(join(home, "Applications", name)),
     );
     if (!dependencies.exists(parent) && !installed) continue;
+    const dir = join(home, relativeDirectory);
+    try {
+      dependencies.makeDirectory(dir);
+      dependencies.writeFile(join(dir, HOST_FILENAME), body);
+    } catch (err) {
+      dependencies.warn(
+        "[pond native] failed to write host manifest",
+        dir,
+        err,
+      );
+    }
+  }
+}
+
+function writeLinuxNativeHostManifests(
+  hostPath: string,
+  dependencies: NativeHostManifestDependencies,
+): void {
+  const home = dependencies.home();
+  const chromiumBody = chromiumNativeHostManifest(hostPath);
+  const firefoxBody = firefoxNativeHostManifest(hostPath);
+  const targets = [
+    ...LINUX_CHROMIUM_NMH_DIRS.map((dir) => ({
+      dir,
+      body: chromiumBody,
+    })),
+    ...LINUX_FIREFOX_NMH_DIRS.map((dir) => ({
+      dir,
+      body: firefoxBody,
+    })),
+  ];
+  for (const { dir: relativeDirectory, body } of targets) {
+    const parent = join(home, relativeDirectory, "..");
+    // Only register under browsers that already have a config directory.
+    if (!dependencies.exists(parent)) continue;
     const dir = join(home, relativeDirectory);
     try {
       dependencies.makeDirectory(dir);

@@ -244,14 +244,62 @@ describe("native host manifests", () => {
     );
   });
 
-  it("does not touch the registry on linux", async () => {
+  it("writes Chromium and Firefox manifests under XDG paths on linux", async () => {
+    const home = "/home/test";
+    const hostPath = "/opt/Pond/pond-native-host";
+    const chromeParent = join(home, ".config/google-chrome");
+    const firefoxParent = join(home, ".mozilla");
+    const writes = new Map<string, string>();
     const registry: string[][] = [];
+
     await writeNativeHostManifests({
       platform: "linux",
+      hostPath: () => hostPath,
+      home: () => home,
+      exists: (path) =>
+        path === hostPath || path === chromeParent || path === firefoxParent,
+      makeDirectory: () => {},
+      writeFile: (path, body) => writes.set(path, body),
       runRegistry: async (args) => {
         registry.push(args);
       },
     });
+
     expect(registry).toEqual([]);
+    expect([...writes.keys()].sort()).toEqual([
+      "/home/test/.config/google-chrome/NativeMessagingHosts/so.pond.host.json",
+      "/home/test/.mozilla/native-messaging-hosts/so.pond.host.json",
+    ]);
+    expect(JSON.parse(writes.get([...writes.keys()][0] ?? "") ?? "")).toEqual(
+      expect.objectContaining({
+        path: hostPath,
+        allowed_origins: expect.any(Array),
+      }),
+    );
+    expect(
+      JSON.parse(
+        writes.get(
+          "/home/test/.mozilla/native-messaging-hosts/so.pond.host.json",
+        ) ?? "",
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        path: hostPath,
+        allowed_extensions: ["desktop@pond.so"],
+      }),
+    );
+  });
+
+  it("skips Linux browser dirs that are not installed", async () => {
+    const writes: string[] = [];
+    await writeNativeHostManifests({
+      platform: "linux",
+      hostPath: () => "/opt/Pond/pond-native-host",
+      home: () => "/home/test",
+      exists: (path) => path === "/opt/Pond/pond-native-host",
+      makeDirectory: () => {},
+      writeFile: (path) => writes.push(path),
+    });
+    expect(writes).toEqual([]);
   });
 });
