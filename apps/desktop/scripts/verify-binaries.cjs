@@ -20,12 +20,19 @@ async function verify(context, { runFfmpeg = runFfmpegVersion } = {}) {
     verifyOnnxRuntime(resourcesDir, platform, arch);
     assertAppIcon(context);
   }
+  if (platform === "linux") {
+    verifySharpLinuxRuntime(resourcesDir, arch);
+    assertAppIcon(context);
+  }
   const ffmpegPath = join(resourcesDir, "bin", ffmpegName(platform));
   const nativeHostPath = join(resourcesDir, "bin", nativeHostName(platform));
 
   assertPresent(ffmpegPath, "ffmpeg");
   // A binary built for another OS cannot be executed on the packaging host.
-  if (platform === "win32" && process.platform === platform) {
+  if (
+    (platform === "win32" || platform === "linux") &&
+    process.platform === platform
+  ) {
     const result = runFfmpeg(ffmpegPath);
     if (result.error || result.status !== 0) {
       throw new Error(
@@ -34,7 +41,7 @@ async function verify(context, { runFfmpeg = runFfmpegVersion } = {}) {
       );
     }
   }
-  if (platform === "darwin" || platform === "win32") {
+  if (platform === "darwin" || platform === "win32" || platform === "linux") {
     assertPresent(
       betterSqlitePath(resourcesDir, platform, arch),
       "better-sqlite3 native module",
@@ -223,6 +230,28 @@ function verifySharpWindowsRuntime(resourcesDir, arch) {
     throw new Error(
       `[pond verify] missing sharp win32-${arch} runtime under ${lib}. ` +
         "A Windows install cannot generate thumbnails without it.",
+    );
+  }
+}
+
+function verifySharpLinuxRuntime(resourcesDir, arch) {
+  if (arch !== "arm64" && arch !== "x64") return;
+  const unpacked = join(resourcesDir, "app.asar.unpacked");
+  const files = listFiles(unpacked);
+  const runtime = files.find(
+    (file) =>
+      file.includes(`${sep}@img${sep}sharp-linux-${arch}${sep}`) &&
+      file.endsWith(".node"),
+  );
+  const libvips = files.find(
+    (file) =>
+      file.includes(`${sep}@img${sep}sharp-libvips-linux-${arch}${sep}`) &&
+      (file.endsWith(".so") || file.includes(".so.")),
+  );
+  if (!runtime || !libvips) {
+    throw new Error(
+      `[pond verify] missing sharp linux-${arch} runtime under ${unpacked}. ` +
+        `A ${arch} Linux install cannot generate thumbnails without it.`,
     );
   }
 }
