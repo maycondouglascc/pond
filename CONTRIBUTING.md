@@ -79,6 +79,12 @@ After `pnpm build`, run the end-to-end smoke test (it opens a window and uses a 
 xvfb-run --auto-servernum pnpm --filter @pond/desktop smoke:desktop
 ```
 
+The Firefox capture smoke opens that same isolated Library, loads the built extension in Firefox, and saves a page through the native host. It needs a display, `pnpm --filter @pond/extension build:firefox`, and `FIREFOX_BIN` plus `GECKODRIVER` on the command:
+
+```bash
+FIREFOX_BIN=/usr/bin/firefox GECKODRIVER=/usr/bin/geckodriver pnpm --filter @pond/desktop smoke:firefox-extension
+```
+
 [`package.yml`](.github/workflows/package.yml) also builds unsigned Linux packages as the `Pond-linux-x64` artifact (AppImage, deb, and `latest-linux.yml`).
 
 ## Add a source
