@@ -192,7 +192,7 @@ published `pond --version` matches `packages/cli/package.json`.
 
 Run these before announcing a release:
 
-- [ ] GitHub Release contains versioned arm64 + x64 `.dmg` and `.zip`, `latest-mac.yml`, Windows x64 `.exe` + blockmap, `latest.yml`, and the three `pond-extension-X.Y.Z-*.zip` store zips
+- [ ] GitHub Release contains versioned arm64 + x64 `.dmg` and `.zip`, `latest-mac.yml`, Windows x64 `.exe` + blockmap, `latest.yml`, Linux x64 `.AppImage` + `.deb`, `latest-linux.yml`, and the three `pond-extension-X.Y.Z-*.zip` store zips
 - [ ] `Casks/pond.rb` contains the release version and DMG checksums
 - [ ] `spctl -a -vv /Volumes/Pond/Pond.app` reports `Notarized Developer ID`
 - [ ] Fresh Mac: download arm64 DMG → open Pond → it launches without a Gatekeeper prompt
@@ -207,6 +207,6 @@ Run these before announcing a release:
 ## Notes
 
 - **Local packaging**: `pnpm dist:mac` signs with a Developer ID identity in your login keychain and skips notarization unless the Apple variables are set.
-- **Auto-update**: Requires the published `latest-mac.yml` (macOS) or `latest.yml` (Windows) from the release workflow. Dev builds skip the updater.
+- **Auto-update**: Requires the published `latest-mac.yml` (macOS), `latest.yml` (Windows), or `latest-linux.yml` (Linux) from the release workflow. Dev builds skip the updater.
 - **Windows**: The x64 NSIS installer is per-user and installs to `%LOCALAPPDATA%\Programs\Pond`. Its uninstaller removes the `pond` protocol, native messaging, and login registry entries but keeps the Library. Before publishing, install, update from the previous release, uninstall on a clean machine, and confirm `reg query HKCU\Software\Classes\pond` finds nothing. Windows arm64 stays disabled until its native dependency set is verified on an arm64 runner.
-- **Linux**: Builds remain disabled.
+- **Linux**: The x64 AppImage and deb ship from the release workflow with `latest-linux.yml` for electron-updater. Local builds are unsigned. Linux arm64 stays disabled until its native dependency set is verified on an arm64 runner.

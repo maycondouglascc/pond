@@ -53,9 +53,33 @@ After `pnpm build`, run the end-to-end smoke test from a normal desktop session 
 pnpm --filter @pond/desktop smoke:desktop
 ```
 
-Pull requests that touch the desktop app, extension, or packages also run [`package.yml`](.github/workflows/package.yml), which builds unsigned test installers. Reviewers can download `Pond-windows-x64` (the installer and `latest.yml`) and `Pond-macos` (Apple Silicon and Intel disk images) from the workflow run's artifacts; they are kept for 7 days and cannot auto-update. The same workflow can be started manually with `workflow_dispatch`.
+Pull requests that touch the desktop app, extension, or packages also run [`package.yml`](.github/workflows/package.yml), which builds unsigned test installers. Reviewers can download `Pond-windows-x64` (the installer and `latest.yml`), `Pond-macos` (Apple Silicon and Intel disk images), and `Pond-linux-x64` (AppImage, deb, and `latest-linux.yml`) from the workflow run's artifacts; they are kept for 7 days and cannot auto-update. The same workflow can be started manually with `workflow_dispatch`.
 
 Keep platform-specific code behind `process.platform` checks and add tests that pass the platform in as a parameter, so Windows and macOS behavior is covered on every CI runner.
+
+## Linux development
+
+Pond builds and runs on Linux (x64). In addition to Node 24 and pnpm 11.27.0:
+
+- Install a C compiler (`build-essential` on Debian/Ubuntu) so `pnpm dist:linux` can compile `pond-native-host`.
+- Packaging also needs `fakeroot`, `dpkg`, and `rpm` for the AppImage and deb targets.
+- Desktop smoke tests need a display. On CI and headless hosts use `xvfb-run`.
+
+To produce the packages:
+
+```bash
+pnpm dist:linux
+```
+
+This builds the desktop app, compiles the native host, and writes `Pond-X.Y.Z-x64.AppImage`, `Pond-X.Y.Z-x64.deb`, and `latest-linux.yml` to `apps/desktop/dist/`. The Safari extension is macOS-only and is skipped. Linux on Arm is not supported yet.
+
+After `pnpm build`, run the end-to-end smoke test (it opens a window and uses a temporary isolated library):
+
+```bash
+xvfb-run --auto-servernum pnpm --filter @pond/desktop smoke:desktop
+```
+
+[`package.yml`](.github/workflows/package.yml) also builds unsigned Linux packages as the `Pond-linux-x64` artifact (AppImage, deb, and `latest-linux.yml`).
 
 ## Add a source
 

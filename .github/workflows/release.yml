@@ -297,8 +297,51 @@ jobs:
           }
           Write-Output "Verified $($files.Count) signed files"
 
+  linux:
+    needs: draft
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install Linux packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fakeroot dpkg rpm libarchive-tools
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set up Turborepo Remote Cache
+        if: ${{ vars.TURBO_TEAM != '' }}
+        uses: vercel/setup-turborepo-remote-cache-action@v1.1.0
+        with:
+          team: ${{ vars.TURBO_TEAM }}
+
+      - name: Build workspace
+        run: pnpm build
+
+      - name: Desktop end-to-end smoke
+        run: xvfb-run --auto-servernum pnpm --filter @pond/desktop smoke:desktop
+
+      - name: Package Linux app and upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm --filter @pond/desktop dist:linux:publish
+
   publish:
-    needs: [macos, windows]
+    needs: [macos, windows, linux]
     runs-on: ubuntu-latest
 
     permissions:
@@ -313,7 +356,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           ASSETS="$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')"
           missing=0
-          for name in             "Pond-${VERSION}-arm64.dmg"             "Pond-${VERSION}-x64.dmg"             "Pond-${VERSION}-arm64.zip"             "Pond-${VERSION}-x64.zip"             "latest-mac.yml"             "Pond-${VERSION}-x64.exe"             "Pond-${VERSION}-x64.exe.blockmap"             "latest.yml"             "pond-extension-${VERSION}-chrome.zip"             "pond-extension-${VERSION}-firefox.zip"             "pond-extension-${VERSION}-sources.zip"; do
+          for name in             "Pond-${VERSION}-arm64.dmg"             "Pond-${VERSION}-x64.dmg"             "Pond-${VERSION}-arm64.zip"             "Pond-${VERSION}-x64.zip"             "latest-mac.yml"             "Pond-${VERSION}-x64.exe"             "Pond-${VERSION}-x64.exe.blockmap"             "latest.yml"             "Pond-${VERSION}-x64.AppImage"             "Pond-${VERSION}-x64.deb"             "latest-linux.yml"             "pond-extension-${VERSION}-chrome.zip"             "pond-extension-${VERSION}-firefox.zip"             "pond-extension-${VERSION}-sources.zip"; do
             if ! grep -Fxq "$name" <<<"$ASSETS"; then
               echo "Missing release asset: $name"
               missing=1
