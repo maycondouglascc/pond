@@ -66,12 +66,29 @@ const DARWIN_FIREFOX_NMH_TARGETS = [
   },
 ] as const;
 
-/** Firefox on Linux uses a hyphenated directory under ~/.mozilla. */
-const LINUX_FIREFOX_NMH_DIRS = [
-  ".mozilla/native-messaging-hosts",
+/**
+ * Firefox's per-user host manifest. Ubuntu's WebExtensions portal reads this
+ * path and launches the host outside the snap, so it has to exist even when
+ * snap or Flatpak Firefox never created ~/.mozilla.
+ */
+const LINUX_FIREFOX_HOST_DIR = ".mozilla/native-messaging-hosts";
+
+/** Forks keep their own profile directory and only get a manifest once that exists. */
+const LINUX_FIREFOX_FORK_NMH_DIRS = [
   ".librewolf/native-messaging-hosts",
   ".floorp/native-messaging-hosts",
   ".zen/native-messaging-hosts",
+] as const;
+
+/** Install locations that mean Firefox is present before a profile directory is. */
+const LINUX_FIREFOX_SIGNALS = [
+  ".mozilla",
+  "snap/firefox",
+  ".var/app/org.mozilla.firefox",
+  "/usr/bin/firefox",
+  "/usr/bin/firefox-esr",
+  "/snap/bin/firefox",
+  "/var/lib/flatpak/exports/bin/org.mozilla.firefox",
 ] as const;
 
 export const WINDOWS_NATIVE_MESSAGING_REGISTRY_KEYS = [
@@ -253,6 +270,15 @@ function writeDarwinNativeHostManifests(
   }
 }
 
+function linuxFirefoxInstalled(
+  home: string,
+  exists: (path: string) => boolean,
+): boolean {
+  return LINUX_FIREFOX_SIGNALS.some((signal) =>
+    exists(signal.startsWith("/") ? signal : join(home, signal)),
+  );
+}
+
 function writeLinuxNativeHostManifests(
   hostPath: string,
   dependencies: NativeHostManifestDependencies,
@@ -264,16 +290,21 @@ function writeLinuxNativeHostManifests(
     ...LINUX_CHROMIUM_NMH_DIRS.map((dir) => ({
       dir,
       body: chromiumBody,
+      ready: dependencies.exists(join(home, dir, "..")),
     })),
-    ...LINUX_FIREFOX_NMH_DIRS.map((dir) => ({
+    {
+      dir: LINUX_FIREFOX_HOST_DIR,
+      body: firefoxBody,
+      ready: linuxFirefoxInstalled(home, dependencies.exists),
+    },
+    ...LINUX_FIREFOX_FORK_NMH_DIRS.map((dir) => ({
       dir,
       body: firefoxBody,
+      ready: dependencies.exists(join(home, dir, "..")),
     })),
   ];
-  for (const { dir: relativeDirectory, body } of targets) {
-    const parent = join(home, relativeDirectory, "..");
-    // Only register under browsers that already have a config directory.
-    if (!dependencies.exists(parent)) continue;
+  for (const { dir: relativeDirectory, body, ready } of targets) {
+    if (!ready) continue;
     const dir = join(home, relativeDirectory);
     try {
       dependencies.makeDirectory(dir);

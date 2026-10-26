@@ -303,4 +303,41 @@ describe("native host manifests", () => {
     });
     expect(writes).toEqual([]);
   });
+
+  it.each([
+    ["snap Firefox", "/home/test/snap/firefox"],
+    ["a Firefox package", "/usr/bin/firefox"],
+    ["Flatpak Firefox", "/home/test/.var/app/org.mozilla.firefox"],
+  ])(
+    "writes the Firefox host manifest for %s before ~/.mozilla exists",
+    async (_label, signal) => {
+      const home = "/home/test";
+      const hostPath = "/opt/Pond/pond-native-host";
+      const writes = new Map<string, string>();
+      const created: string[] = [];
+
+      await writeNativeHostManifests({
+        platform: "linux",
+        hostPath: () => hostPath,
+        home: () => home,
+        exists: (path) => path === hostPath || path === signal,
+        makeDirectory: (path) => created.push(path),
+        writeFile: (path, body) => writes.set(path, body),
+      });
+
+      const firefoxManifest = join(
+        home,
+        ".mozilla/native-messaging-hosts/so.pond.host.json",
+      );
+      expect([...writes.keys()]).toEqual([firefoxManifest]);
+      expect(created).toContain(join(home, ".mozilla/native-messaging-hosts"));
+      expect(JSON.parse(writes.get(firefoxManifest) ?? "")).toEqual({
+        name: "so.pond.host",
+        description: "Pond",
+        path: hostPath,
+        type: "stdio",
+        allowed_extensions: ["desktop@pond.so"],
+      });
+    },
+  );
 });
