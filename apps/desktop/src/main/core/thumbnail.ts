@@ -327,20 +327,31 @@ async function osNativeThumbnail(
   pipeline: ReturnType<typeof sharp>;
   metadata: Metadata;
 } | null> {
-  if (process.platform !== "darwin" && process.platform !== "win32") {
+  if (
+    process.platform !== "darwin" &&
+    process.platform !== "win32" &&
+    process.platform !== "linux"
+  ) {
     return null;
   }
-  const { nativeImage } = await import("electron");
-  const image = await nativeImage.createThumbnailFromPath(sourcePath, {
-    width,
-    height: width,
-  });
-  if (image.isEmpty()) return null;
-  const nativePipeline = sharp(image.toPNG(), { failOn: "none" });
-  return {
-    pipeline: nativePipeline,
-    metadata: await nativePipeline.metadata(),
-  };
+  try {
+    const { nativeImage } = await import("electron");
+    const image = await nativeImage.createThumbnailFromPath(sourcePath, {
+      width,
+      height: width,
+    });
+    if (image.isEmpty()) return null;
+    const nativePipeline = sharp(image.toPNG(), { failOn: "none" });
+    return {
+      pipeline: nativePipeline,
+      metadata: await nativePipeline.metadata(),
+    };
+  } catch (error) {
+    // Linux thumbnailers (and occasional Windows failures) leave previews blank
+    // rather than failing the Save; sharp / sidecar paths remain available.
+    log.warn("[pond] native thumbnail unavailable", sourcePath, error);
+    return null;
+  }
 }
 
 async function readFileHeader(sourcePath: string): Promise<Buffer> {
