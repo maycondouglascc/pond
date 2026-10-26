@@ -168,11 +168,23 @@ int main(void) {
   }
 
   char sock_path[512];
-  int n = snprintf(
+  int n;
+#if defined(__linux__)
+  const char *config_home = getenv("XDG_CONFIG_HOME");
+  if (config_home && config_home[0]) {
+    n = snprintf(
+        sock_path, sizeof sock_path, "%s/Pond/native.sock", config_home);
+  } else {
+    n = snprintf(
+        sock_path, sizeof sock_path, "%s/.config/Pond/native.sock", home);
+  }
+#else
+  n = snprintf(
       sock_path,
       sizeof sock_path,
       "%s/Library/Application Support/Pond/native.sock",
       home);
+#endif
   if (n < 0 || (size_t)n >= sizeof sock_path) {
     reply_offline();
     return 0;

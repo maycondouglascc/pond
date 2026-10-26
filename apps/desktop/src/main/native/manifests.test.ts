@@ -244,14 +244,100 @@ describe("native host manifests", () => {
     );
   });
 
-  it("does not touch the registry on linux", async () => {
+  it("writes Chromium and Firefox manifests under XDG paths on linux", async () => {
+    const home = "/home/test";
+    const hostPath = "/opt/Pond/pond-native-host";
+    const chromeParent = join(home, ".config/google-chrome");
+    const firefoxParent = join(home, ".mozilla");
+    const writes = new Map<string, string>();
     const registry: string[][] = [];
+
     await writeNativeHostManifests({
       platform: "linux",
+      hostPath: () => hostPath,
+      home: () => home,
+      exists: (path) =>
+        path === hostPath || path === chromeParent || path === firefoxParent,
+      makeDirectory: () => {},
+      writeFile: (path, body) => writes.set(path, body),
       runRegistry: async (args) => {
         registry.push(args);
       },
     });
+
+    const chromeManifest = join(
+      home,
+      ".config/google-chrome/NativeMessagingHosts/so.pond.host.json",
+    );
+    const firefoxManifest = join(
+      home,
+      ".mozilla/native-messaging-hosts/so.pond.host.json",
+    );
     expect(registry).toEqual([]);
+    expect([...writes.keys()].sort()).toEqual(
+      [chromeManifest, firefoxManifest].sort(),
+    );
+    expect(JSON.parse(writes.get(chromeManifest) ?? "")).toEqual(
+      expect.objectContaining({
+        path: hostPath,
+        allowed_origins: expect.any(Array),
+      }),
+    );
+    expect(JSON.parse(writes.get(firefoxManifest) ?? "")).toEqual(
+      expect.objectContaining({
+        path: hostPath,
+        allowed_extensions: ["desktop@pond.so"],
+      }),
+    );
   });
+
+  it("skips Linux browser dirs that are not installed", async () => {
+    const writes: string[] = [];
+    await writeNativeHostManifests({
+      platform: "linux",
+      hostPath: () => "/opt/Pond/pond-native-host",
+      home: () => "/home/test",
+      exists: (path) => path === "/opt/Pond/pond-native-host",
+      makeDirectory: () => {},
+      writeFile: (path) => writes.push(path),
+    });
+    expect(writes).toEqual([]);
+  });
+
+  it.each([
+    ["snap Firefox", "/home/test/snap/firefox"],
+    ["a Firefox package", "/usr/bin/firefox"],
+    ["Flatpak Firefox", "/home/test/.var/app/org.mozilla.firefox"],
+  ])(
+    "writes the Firefox host manifest for %s before ~/.mozilla exists",
+    async (_label, signal) => {
+      const home = "/home/test";
+      const hostPath = "/opt/Pond/pond-native-host";
+      const writes = new Map<string, string>();
+      const created: string[] = [];
+
+      await writeNativeHostManifests({
+        platform: "linux",
+        hostPath: () => hostPath,
+        home: () => home,
+        exists: (path) => path === hostPath || path === signal,
+        makeDirectory: (path) => created.push(path),
+        writeFile: (path, body) => writes.set(path, body),
+      });
+
+      const firefoxManifest = join(
+        home,
+        ".mozilla/native-messaging-hosts/so.pond.host.json",
+      );
+      expect([...writes.keys()]).toEqual([firefoxManifest]);
+      expect(created).toContain(join(home, ".mozilla/native-messaging-hosts"));
+      expect(JSON.parse(writes.get(firefoxManifest) ?? "")).toEqual({
+        name: "so.pond.host",
+        description: "Pond",
+        path: hostPath,
+        type: "stdio",
+        allowed_extensions: ["desktop@pond.so"],
+      });
+    },
+  );
 });

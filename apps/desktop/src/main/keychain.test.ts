@@ -68,6 +68,21 @@ describe("secrets", () => {
     expect(await keychain.getSecret("agent:test")).toBe("sk-test");
   });
 
+  it("falls back to plaintext when Linux protect fails after availability", async () => {
+    port.platform = "linux";
+    port.encryptionEnabled = true;
+    const original = port.protect.bind(port);
+    port.protect = () => {
+      throw new Error("libsecret missing");
+    };
+    await keychain.setSecret("agent:test", "sk-test");
+    expect(await keychain.getSecret("agent:test")).toBe("sk-test");
+    expect(await readFile(join(userData, "secrets.json"), "utf8")).toContain(
+      "raw:",
+    );
+    port.protect = original;
+  });
+
   it("returns null for a protected secret that cannot be decrypted", async () => {
     await keychain.setSecret("agent:test", "sk-test");
     port.decryptionEnabled = false;

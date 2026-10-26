@@ -50,8 +50,8 @@ files:
 # to mux adaptive streams (most TikTok / IG Reels / YT downloads need
 # it). `extraResources` flattens it into `bin/` so `binariesAvailable`
 # can spawn it as a separate process (asar paths aren't executable). The
-# executable name differs per OS, so it is declared in `mac:` and `win:`.
-# yt-dlp is not bundled: it's fetched at runtime into userData.
+# executable name differs per OS, so it is declared in `mac:`, `win:`,
+# and `linux:`. yt-dlp is not bundled: it's fetched at runtime into userData.
 extraResources:
   - from: resources
     to: .
@@ -198,9 +198,35 @@ nsis:
   # Removes the HKCU registrations Pond writes at runtime; keeps the Library.
   include: packaging/installer.nsh
 
-# Linux remains disabled until that build ships.
-# linux:
-#   target:
-#     - target: AppImage
-#     - target: deb
-#   category: Utility
+# Linux x64 ships AppImage (electron-updater's latest-linux.yml) and a deb.
+# Arm stays disabled until the native dependency set is verified on arm runners.
+linux:
+  # package.json name is scoped (@pond/desktop); AppImage paths cannot use @.
+  executableName: Pond
+  syncDesktopName: true
+  # Keep x64 in the filename (AppImage's default arch token is x86_64).
+  artifactName: ${productName}-${version}-x64.${ext}
+  category: Utility
+  maintainer: Raphael Salaja <raphaelsalaja@gmail.com>
+  mimeTypes:
+    - application/x-pond-library
+  desktop:
+    entry:
+      Name: Pond
+      StartupWMClass: Pond
+  fileAssociations:
+    - ext: pond
+      name: Pond Library
+      description: Pond Library
+      mimeType: application/x-pond-library
+      role: Editor
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  extraResources:
+    - from: node_modules/ffmpeg-static/ffmpeg
+      to: bin/ffmpeg

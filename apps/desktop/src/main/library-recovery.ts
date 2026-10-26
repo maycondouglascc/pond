@@ -7,6 +7,7 @@ import {
   readLibraryId,
 } from "./lib/library-id";
 import { checkPointerSafety } from "./lib/library-pointer";
+import { relaunchPackagedApp } from "./lib/relaunch-app";
 
 interface OpenProblem {
   message: string;
@@ -65,8 +66,7 @@ export async function recoverUnreadableLibrary(
       continue;
     }
     commitLibraryPointer(path);
-    app.relaunch();
-    app.exit(0);
+    relaunchPackagedApp();
     return;
   }
 }

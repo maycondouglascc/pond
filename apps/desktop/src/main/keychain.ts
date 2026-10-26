@@ -85,11 +85,22 @@ async function writeAll(port: KeychainPort, map: SecretMap): Promise<void> {
 
 function encrypt(port: KeychainPort, plain: string): string {
   if (port.encryptionAvailable()) {
-    return `enc:${port.protect(plain).toString("base64")}`;
+    try {
+      return `enc:${port.protect(plain).toString("base64")}`;
+    } catch (error) {
+      /** Windows has no plaintext fallback: file modes do nothing on NTFS. */
+      if (port.platform === "win32") throw new KeychainUnavailableError();
+      /** Linux libsecret/kwallet can disappear after the availability check. */
+      log.warn(
+        "[pond] safeStorage protect failed, persisting secret in plaintext",
+        error,
+      );
+      return `raw:${Buffer.from(plain, "utf8").toString("base64")}`;
+    }
   }
   /** Windows has no plaintext fallback: file modes do nothing on NTFS, so refuse rather than store a reversible copy. */
   if (port.platform === "win32") throw new KeychainUnavailableError();
-  /** No keychain backend (Linux/first-run); tag the value so reads don't decrypt plaintext. */
+  /** No keychain backend (Linux without libsecret/kwallet); tag the value so reads don't decrypt plaintext. */
   log.warn(
     "[pond] safeStorage encryption unavailable, persisting secret in plaintext",
   );

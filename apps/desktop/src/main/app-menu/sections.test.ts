@@ -18,9 +18,17 @@ import { buildViewSection } from "./view-section";
 function createContext({
   isMac,
   isPackaged,
+  revealInFileManagerLabel = isMac
+    ? "Reveal in Finder"
+    : "Reveal in File Explorer",
+  showLogsInFileManagerLabel = isMac
+    ? "Show Logs in Finder"
+    : "Show Logs in File Explorer",
 }: {
   isMac: boolean;
   isPackaged: boolean;
+  revealInFileManagerLabel?: string;
+  showLogsInFileManagerLabel?: string;
 }): AppMenuContext {
   const noOp = () => undefined;
 
@@ -37,6 +45,8 @@ function createContext({
     },
     isMac,
     isPackaged,
+    revealInFileManagerLabel,
+    showLogsInFileManagerLabel,
     navTo: () => noOp,
     openExternalUrl: () => noOp,
     openLibraryWindow: noOp,
@@ -81,6 +91,25 @@ describe("app menu sections", () => {
       expect.arrayContaining([
         expect.objectContaining({ role: "about", label: "About Pond" }),
         expect.objectContaining({ label: "Show Logs in File Explorer" }),
+      ]),
+    );
+  });
+
+  it("labels Linux reveal and logs with File Manager", () => {
+    const context = createContext({
+      isMac: false,
+      isPackaged: true,
+      revealInFileManagerLabel: "Show in File Manager",
+      showLogsInFileManagerLabel: "Show Logs in File Manager",
+    });
+    expect(buildFileSection(context).submenu).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Show in File Manager" }),
+      ]),
+    );
+    expect(buildHelpSection(context).submenu).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Show Logs in File Manager" }),
       ]),
     );
   });

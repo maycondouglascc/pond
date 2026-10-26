@@ -15,7 +15,7 @@ const HOST_FILENAME = `${NATIVE_HOST_NAME}.json`;
 const FIREFOX_HOST_FILENAME = `${NATIVE_HOST_NAME}.firefox.json`;
 const execFileAsync = promisify(execFile);
 
-const CHROMIUM_NMH_DIRS = [
+const DARWIN_CHROMIUM_NMH_DIRS = [
   "Library/Application Support/Google/Chrome/NativeMessagingHosts",
   "Library/Application Support/Google/Chrome Canary/NativeMessagingHosts",
   "Library/Application Support/Google/Chrome for Testing/NativeMessagingHosts",
@@ -27,7 +27,19 @@ const CHROMIUM_NMH_DIRS = [
   "Library/Application Support/Vivaldi/NativeMessagingHosts",
 ] as const;
 
-const FIREFOX_NMH_TARGETS = [
+const LINUX_CHROMIUM_NMH_DIRS = [
+  ".config/google-chrome/NativeMessagingHosts",
+  ".config/google-chrome-beta/NativeMessagingHosts",
+  ".config/google-chrome-unstable/NativeMessagingHosts",
+  ".config/chromium/NativeMessagingHosts",
+  ".config/BraveSoftware/Brave-Browser/NativeMessagingHosts",
+  ".config/microsoft-edge/NativeMessagingHosts",
+  ".config/microsoft-edge-beta/NativeMessagingHosts",
+  ".config/microsoft-edge-dev/NativeMessagingHosts",
+  ".config/vivaldi/NativeMessagingHosts",
+] as const;
+
+const DARWIN_FIREFOX_NMH_TARGETS = [
   {
     dir: "Library/Application Support/Mozilla/NativeMessagingHosts",
     apps: [
@@ -52,6 +64,31 @@ const FIREFOX_NMH_TARGETS = [
     dir: "Library/Application Support/Floorp/NativeMessagingHosts",
     apps: ["Floorp.app"],
   },
+] as const;
+
+/**
+ * Firefox's per-user host manifest. Ubuntu's WebExtensions portal reads this
+ * path and launches the host outside the snap, so it has to exist even when
+ * snap or Flatpak Firefox never created ~/.mozilla.
+ */
+const LINUX_FIREFOX_HOST_DIR = ".mozilla/native-messaging-hosts";
+
+/** Forks keep their own profile directory and only get a manifest once that exists. */
+const LINUX_FIREFOX_FORK_NMH_DIRS = [
+  ".librewolf/native-messaging-hosts",
+  ".floorp/native-messaging-hosts",
+  ".zen/native-messaging-hosts",
+] as const;
+
+/** Install locations that mean Firefox is present before a profile directory is. */
+const LINUX_FIREFOX_SIGNALS = [
+  ".mozilla",
+  "snap/firefox",
+  ".var/app/org.mozilla.firefox",
+  "/usr/bin/firefox",
+  "/usr/bin/firefox-esr",
+  "/snap/bin/firefox",
+  "/var/lib/flatpak/exports/bin/org.mozilla.firefox",
 ] as const;
 
 export const WINDOWS_NATIVE_MESSAGING_REGISTRY_KEYS = [
@@ -165,7 +202,11 @@ export async function writeNativeHostManifests(
   overrides: Partial<NativeHostManifestDependencies> = {},
 ): Promise<void> {
   const dependencies = { ...defaultDependencies, ...overrides };
-  if (dependencies.platform !== "darwin" && dependencies.platform !== "win32") {
+  if (
+    dependencies.platform !== "darwin" &&
+    dependencies.platform !== "win32" &&
+    dependencies.platform !== "linux"
+  ) {
     return;
   }
 
@@ -180,14 +221,29 @@ export async function writeNativeHostManifests(
     return;
   }
 
+  if (dependencies.platform === "linux") {
+    writeLinuxNativeHostManifests(hostPath, dependencies);
+    return;
+  }
+
+  writeDarwinNativeHostManifests(hostPath, dependencies);
+}
+
+/** Chromium hosts have no app-bundle gate, so this stays empty and typed for the shared target list. */
+const NO_DARWIN_APPS: readonly string[] = [];
+
+function writeDarwinNativeHostManifests(
+  hostPath: string,
+  dependencies: NativeHostManifestDependencies,
+): void {
   const home = dependencies.home();
   const targets = [
-    ...CHROMIUM_NMH_DIRS.map((dir) => ({
+    ...DARWIN_CHROMIUM_NMH_DIRS.map((dir) => ({
       dir,
-      apps: [],
+      apps: NO_DARWIN_APPS,
       body: chromiumNativeHostManifest(hostPath),
     })),
-    ...FIREFOX_NMH_TARGETS.map((target) => ({
+    ...DARWIN_FIREFOX_NMH_TARGETS.map((target) => ({
       ...target,
       body: firefoxNativeHostManifest(hostPath),
     })),
@@ -200,6 +256,55 @@ export async function writeNativeHostManifests(
         dependencies.exists(join(home, "Applications", name)),
     );
     if (!dependencies.exists(parent) && !installed) continue;
+    const dir = join(home, relativeDirectory);
+    try {
+      dependencies.makeDirectory(dir);
+      dependencies.writeFile(join(dir, HOST_FILENAME), body);
+    } catch (err) {
+      dependencies.warn(
+        "[pond native] failed to write host manifest",
+        dir,
+        err,
+      );
+    }
+  }
+}
+
+function linuxFirefoxInstalled(
+  home: string,
+  exists: (path: string) => boolean,
+): boolean {
+  return LINUX_FIREFOX_SIGNALS.some((signal) =>
+    exists(signal.startsWith("/") ? signal : join(home, signal)),
+  );
+}
+
+function writeLinuxNativeHostManifests(
+  hostPath: string,
+  dependencies: NativeHostManifestDependencies,
+): void {
+  const home = dependencies.home();
+  const chromiumBody = chromiumNativeHostManifest(hostPath);
+  const firefoxBody = firefoxNativeHostManifest(hostPath);
+  const targets = [
+    ...LINUX_CHROMIUM_NMH_DIRS.map((dir) => ({
+      dir,
+      body: chromiumBody,
+      ready: dependencies.exists(join(home, dir, "..")),
+    })),
+    {
+      dir: LINUX_FIREFOX_HOST_DIR,
+      body: firefoxBody,
+      ready: linuxFirefoxInstalled(home, dependencies.exists),
+    },
+    ...LINUX_FIREFOX_FORK_NMH_DIRS.map((dir) => ({
+      dir,
+      body: firefoxBody,
+      ready: dependencies.exists(join(home, dir, "..")),
+    })),
+  ];
+  for (const { dir: relativeDirectory, body, ready } of targets) {
+    if (!ready) continue;
     const dir = join(home, relativeDirectory);
     try {
       dependencies.makeDirectory(dir);
