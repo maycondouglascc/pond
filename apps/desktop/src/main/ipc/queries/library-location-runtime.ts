@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { BrowserWindow } from "electron";
 import log from "electron-log/main.js";
 import { userError } from "../../../shared/user-error";
 import { startAutoImport, stopAutoImport } from "../../core/auto-import";
@@ -21,6 +21,10 @@ import { flushTagsDump, hydrateTagsFromBundle } from "../../core/tags-bundle";
 import { clearUndoHistory } from "../../core/undo";
 import { closeDb } from "../../db";
 import { rotateBundleBackups } from "../../lib/library-config";
+import {
+  preferSoftLibraryRepoint,
+  relaunchPackagedApp,
+} from "../../lib/relaunch-app";
 import { invalidatePaths, resolvePaths } from "../../paths";
 
 const libraryWork = createLibraryWorkCoordinator({
@@ -67,20 +71,19 @@ export function waitForLibraryLocationChanges(): Promise<void> {
 }
 
 export async function relaunchSoon(): Promise<void> {
-  if (process.env.ELECTRON_RENDERER_URL) {
-    await softRepointInDev();
+  if (preferSoftLibraryRepoint()) {
+    await softRepointLibrary();
     return;
   }
   relaunchPending = true;
   setTimeout(() => {
     log.info("[pond library-ops] relaunching into new library");
-    app.relaunch();
-    app.exit(0);
+    relaunchPackagedApp();
   }, 150);
 }
 
-async function softRepointInDev(): Promise<void> {
-  log.info("[pond library-ops] dev re-point into new library (no relaunch)");
+async function softRepointLibrary(): Promise<void> {
+  log.info("[pond library-ops] soft re-point into new library (no relaunch)");
   await flushTagsDump().catch((err) =>
     log.warn("[pond library-ops] tags.json flush failed", err),
   );
@@ -108,7 +111,7 @@ async function softRepointInDev(): Promise<void> {
   try {
     await reconcileLibrary();
   } catch (err) {
-    log.warn("[pond library-ops] dev re-point reconcile failed", err);
+    log.warn("[pond library-ops] soft re-point reconcile failed", err);
   }
   await resumeLibraryWork();
   closePreviewWindows();
