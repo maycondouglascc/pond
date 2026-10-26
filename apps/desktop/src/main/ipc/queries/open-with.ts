@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import {
   app,
@@ -58,14 +59,55 @@ JSON.stringify({ defaultPath: fallback ? ObjC.unwrap(fallback.path) : null, path
     ["-l", "JavaScript", "-e", script],
     { timeout: 8000 },
   );
-  return rankOpenWithApps(parseOpenWithPayload(stdout.trim()));
+  return rankOpenWithApps(parseOpenWithPayload(stdout.trim()), 24, "darwin");
+}
+
+async function listLinuxApps(filePath: string): Promise<OpenWithAppInfo[]> {
+  try {
+    const { stdout: mime } = await run(
+      "xdg-mime",
+      ["query", "filetype", filePath],
+      {
+        timeout: 5_000,
+      },
+    );
+    const type = mime.trim();
+    if (!type) return [];
+    const { stdout: desktop } = await run(
+      "xdg-mime",
+      ["query", "default", type],
+      { timeout: 5_000 },
+    );
+    const id = desktop.trim();
+    if (!id) return [];
+    const path = await resolveDesktopEntry(id);
+    if (!path) return [];
+    return rankOpenWithApps({ defaultPath: path, paths: [path] }, 24, "linux");
+  } catch {
+    return [];
+  }
+}
+
+async function resolveDesktopEntry(id: string): Promise<string | null> {
+  const home = process.env.HOME ?? "";
+  const candidates = [
+    join(home, ".local/share/applications", id),
+    join("/usr/local/share/applications", id),
+    join("/usr/share/applications", id),
+  ];
+  return candidates.find((path) => existsSync(path)) ?? null;
 }
 
 async function listedApps(filePath: string): Promise<OpenWithAppInfo[]> {
   const key = openWithListingKey(filePath);
   const cached = listedAppsByKind.get(key);
   if (cached) return cached;
-  const ranked = await listMacApps(filePath);
+  const ranked =
+    process.platform === "darwin"
+      ? await listMacApps(filePath)
+      : process.platform === "linux"
+        ? await listLinuxApps(filePath)
+        : [];
   listedAppsByKind.set(key, ranked);
   return ranked;
 }
@@ -119,6 +161,17 @@ async function openFilesWith(
   application: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
+    if (process.platform === "linux") {
+      for (const file of files) {
+        if (application.endsWith(".desktop")) {
+          const id = application.split("/").pop() ?? application;
+          await run("gtk-launch", [id, file], { timeout: 15_000 });
+        } else {
+          await run(application, [file], { timeout: 15_000 });
+        }
+      }
+      return { ok: true };
+    }
     for (let offset = 0; offset < files.length; offset += 100)
       await run("/usr/bin/open", [
         "-a",
@@ -133,6 +186,24 @@ async function openFilesWith(
         error instanceof Error
           ? error.message
           : "Could not open the selected application.",
+    };
+  }
+}
+
+async function openFilesWithDefault(
+  files: string[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    for (const file of files)
+      await run("xdg-open", [file], { timeout: 15_000 });
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not open the selected file.",
     };
   }
 }
@@ -173,7 +244,8 @@ export const openWithQueries = {
       includeIcons: z.boolean().optional(),
     }),
     async ({ ids, fileIndex, includeIcons }) => {
-      if (process.platform !== "darwin") return { apps: [] };
+      if (process.platform !== "darwin" && process.platform !== "linux")
+        return { apps: [] };
       const target = await resolveSaveFilePath(ids[0] ?? "", fileIndex);
       if (!target.ok) return { apps: [] };
       try {
@@ -209,6 +281,14 @@ export const openWithQueries = {
             for (const file of files)
               await run("rundll32.exe", ["shell32.dll,OpenAs_RunDLL", file]);
             return { ok: true };
+          }
+          if (process.platform === "linux") {
+            if (application) {
+              if (!existsSync(application))
+                return { ok: false, error: "Could not find that application." };
+              return openFilesWith(files, application);
+            }
+            return openFilesWithDefault(files);
           }
           if (process.platform !== "darwin")
             return {
