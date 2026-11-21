@@ -340,4 +340,37 @@ describe("native host manifests", () => {
       });
     },
   );
+
+  it("writes Firefox host manifests into both ~/.mozilla and snap shared data when present", async () => {
+    const home = "/home/test";
+    const hostPath = "/opt/Pond/pond-native-host";
+    const writes = new Map<string, string>();
+    const created: string[] = [];
+
+    await writeNativeHostManifests({
+      platform: "linux",
+      hostPath: () => hostPath,
+      home: () => home,
+      exists: (path) =>
+        path === hostPath ||
+        path === join(home, "snap/firefox") ||
+        path === join(home, "snap/firefox/common/.mozilla"),
+      makeDirectory: (path) => created.push(path),
+      writeFile: (path, body) => writes.set(path, body),
+    });
+
+    const portalManifest = join(
+      home,
+      ".mozilla/native-messaging-hosts/so.pond.host.json",
+    );
+    const snapManifest = join(
+      home,
+      "snap/firefox/common/.mozilla/native-messaging-hosts/so.pond.host.json",
+    );
+    expect([...writes.keys()]).toEqual([portalManifest, snapManifest]);
+    expect(created).toContain(join(home, ".mozilla/native-messaging-hosts"));
+    expect(created).toContain(
+      join(home, "snap/firefox/common/.mozilla/native-messaging-hosts"),
+    );
+  });
 });

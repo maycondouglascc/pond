@@ -73,11 +73,23 @@ const DARWIN_FIREFOX_NMH_TARGETS = [
  */
 const LINUX_FIREFOX_HOST_DIR = ".mozilla/native-messaging-hosts";
 
+/**
+ * Sandboxed container paths for Snap and Flatpak Firefox.
+ * While Ubuntu's WebExtensions portal reads ~/.mozilla, container-local
+ * profiles also look in their own respective configuration root.
+ */
+const LINUX_FIREFOX_CONTAINER_NMH_DIRS = [
+  "snap/firefox/common/.mozilla/native-messaging-hosts",
+  ".var/app/org.mozilla.firefox/.mozilla/native-messaging-hosts",
+] as const;
+
 /** Forks keep their own profile directory and only get a manifest once that exists. */
 const LINUX_FIREFOX_FORK_NMH_DIRS = [
   ".librewolf/native-messaging-hosts",
+  ".var/app/io.gitlab.librewolf-community/.librewolf/native-messaging-hosts",
   ".floorp/native-messaging-hosts",
   ".zen/native-messaging-hosts",
+  ".var/app/app.zen_browser.zen/.zen/native-messaging-hosts",
 ] as const;
 
 /** Install locations that mean Firefox is present before a profile directory is. */
@@ -297,6 +309,11 @@ function writeLinuxNativeHostManifests(
       body: firefoxBody,
       ready: linuxFirefoxInstalled(home, dependencies.exists),
     },
+    ...LINUX_FIREFOX_CONTAINER_NMH_DIRS.map((dir) => ({
+      dir,
+      body: firefoxBody,
+      ready: dependencies.exists(join(home, dir, "..")),
+    })),
     ...LINUX_FIREFOX_FORK_NMH_DIRS.map((dir) => ({
       dir,
       body: firefoxBody,
