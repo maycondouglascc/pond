@@ -24,6 +24,22 @@ describe("rankOpenWithApps", () => {
     expect(apps.slice(1).every((app) => !app.isDefault)).toBe(true);
   });
 
+  it("ranks Linux .desktop handlers without requiring a .app suffix", () => {
+    const apps = rankOpenWithApps(
+      {
+        defaultPath: "/usr/share/applications/org.gnome.eog.desktop",
+        paths: [
+          "/usr/share/applications/gimp.desktop",
+          "/usr/share/applications/org.gnome.eog.desktop",
+        ],
+      },
+      24,
+      "linux",
+    );
+    expect(apps.map((app) => app.name)).toEqual(["org.gnome.eog", "gimp"]);
+    expect(apps[0]?.isDefault).toBe(true);
+  });
+
   it("reuses the lowercase extension as the listing key", () => {
     expect(openWithListingKey("/tmp/shot.PNG")).toBe(".png");
     expect(openWithListingKey("/tmp/no-extension")).toBe("/tmp/no-extension");

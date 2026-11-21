@@ -14,7 +14,11 @@ const out = resolve(
   process.platform === "win32" ? "pond-native-host.exe" : "pond-native-host",
 );
 
-if (process.platform !== "darwin" && process.platform !== "win32") {
+if (
+  process.platform !== "darwin" &&
+  process.platform !== "win32" &&
+  process.platform !== "linux"
+) {
   console.log("[pond] native host skipped (unsupported platform)");
   process.exit(0);
 }

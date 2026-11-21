@@ -42,7 +42,8 @@ describe("native menu shortcut presentation", () => {
     expect(menuAccelerator(pond["view.grayscale"])).toBe(
       "CommandOrControl+Alt+G",
     );
-    expect(menuAccelerator(pond["nav.library"])).toBe("G L");
+    expect(menuAccelerator(pond["nav.library"])).toBeUndefined();
+    expect(menuAccelerator(pond["nav.sources"])).toBeUndefined();
     expect(menuAccelerator(pond["save.reveal"])).toBe("F");
   });
 });

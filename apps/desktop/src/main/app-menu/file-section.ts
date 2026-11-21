@@ -207,7 +207,7 @@ export function buildFileSection(context: AppMenuContext): AppMenuItem {
         click: sendMenuAction("save.open-original"),
       },
       {
-        label: context.isMac ? "Reveal in Finder" : "Reveal in File Explorer",
+        label: context.revealInFileManagerLabel,
         accelerator: accelerator("save.reveal"),
         registerAccelerator: false,
         click: sendMenuAction("save.reveal"),

@@ -15,22 +15,53 @@ it("installs a font into the Pond fonts directory and removes it", async () => {
   const source = join(root, "SourceSerif.ttf");
   await writeFile(source, Buffer.from("font"));
   const fontsDir = join(root, "Fonts");
+  const fcCacheCalls: string[] = [];
+  const runFcCache = async (dir: string) => {
+    fcCacheCalls.push(dir);
+  };
   const activated = await activateFont({
     sourcePath: source,
     saveId: "save-1",
     platform: "linux",
     fontsDir,
+    runFcCache,
   });
   if (!activated.ok) throw new Error(activated.error);
   expect(activated.path.startsWith(join(fontsDir, "Pond"))).toBe(true);
   expect(await readFile(activated.path, "utf8")).toBe("font");
+  expect(fcCacheCalls).toEqual([join(fontsDir, "Pond")]);
   const deactivated = await deactivateFont({
     installedPath: activated.path,
     platform: "linux",
     fontsDir,
+    runFcCache,
   });
   expect(deactivated.ok).toBe(true);
+  expect(fcCacheCalls).toEqual([
+    join(fontsDir, "Pond"),
+    join(fontsDir, "Pond"),
+  ]);
   await expect(readFile(activated.path)).rejects.toThrow();
+});
+
+it("removes the copied Linux font when fc-cache fails", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pond-fonts-"));
+  const source = join(root, "Display.ttf");
+  await writeFile(source, "font");
+  const fontsDir = join(root, "Fonts");
+  const result = await activateFont({
+    sourcePath: source,
+    saveId: "save-1",
+    fontsDir,
+    platform: "linux",
+    async runFcCache() {
+      throw new Error("fc-cache failed");
+    },
+  });
+  expect(result).toEqual({ ok: false, error: "fc-cache failed" });
+  await expect(
+    readFile(join(fontsDir, "Pond", "save-1.ttf")),
+  ).rejects.toThrow();
 });
 
 it("backfills indexed activation from existing sidecars", () => {

@@ -86,6 +86,7 @@ test("uses the executable name required by each packaged platform", () => {
   assert.equal(verifyBinaries.ffmpegName("linux"), "ffmpeg");
   assert.equal(verifyBinaries.ffmpegName("win32"), "ffmpeg.exe");
   assert.equal(verifyBinaries.nativeHostName("darwin"), "pond-native-host");
+  assert.equal(verifyBinaries.nativeHostName("linux"), "pond-native-host");
   assert.equal(verifyBinaries.nativeHostName("win32"), "pond-native-host.exe");
 });
 
@@ -168,6 +169,84 @@ test("rejects a bundled ffmpeg that does not run", {
         runFfmpeg: () => ({ status: 1 }),
       }),
       /does not run/,
+    );
+  });
+});
+
+async function writeLinuxRuntime(resourcesDirectory, options = {}) {
+  const binaryDirectory = join(resourcesDirectory, "bin");
+  await mkdir(binaryDirectory, { recursive: true });
+  await writeFile(join(binaryDirectory, "ffmpeg"), "binary");
+  if (options.nativeHost !== false) {
+    await writeFile(join(binaryDirectory, "pond-native-host"), "binary");
+  }
+  await mkdir(
+    join(
+      resourcesDirectory,
+      "app.asar.unpacked/node_modules/better-sqlite3/prebuilds",
+    ),
+    { recursive: true },
+  );
+  await writeFile(
+    verifyBinaries.betterSqlitePath(resourcesDirectory, "linux", "x64"),
+    "binary",
+  );
+  const sqliteVec = verifyBinaries.sqliteVecPath(
+    resourcesDirectory,
+    "linux",
+    "x64",
+  );
+  await mkdir(join(sqliteVec, ".."), { recursive: true });
+  await writeFile(sqliteVec, "binary");
+  if (options.sharp !== false) {
+    const sharpDir = join(
+      resourcesDirectory,
+      "app.asar.unpacked/node_modules/@img/sharp-linux-x64",
+    );
+    const libvipsDir = join(
+      resourcesDirectory,
+      "app.asar.unpacked/node_modules/@img/sharp-libvips-linux-x64/lib",
+    );
+    await mkdir(sharpDir, { recursive: true });
+    await mkdir(libvipsDir, { recursive: true });
+    await writeFile(join(sharpDir, "sharp-linux-x64.node"), "binary");
+    await writeFile(join(libvipsDir, "libvips-cpp.so.42"), "binary");
+  }
+  if (options.icon !== false) {
+    const build = join(resourcesDirectory, "..", "build");
+    await mkdir(build, { recursive: true });
+    await writeFile(join(build, "icon.png"), "binary");
+  }
+}
+
+test("accepts the Linux ffmpeg binary in the packaged resources", async () => {
+  await withTemporaryDirectory(async (appOutDir) => {
+    await writeLinuxRuntime(join(appOutDir, "resources"));
+
+    await verify(buildContext(appOutDir, "linux"));
+  });
+});
+
+test("rejects a Linux package without its native-host binary", async () => {
+  await withTemporaryDirectory(async (appOutDir) => {
+    await writeLinuxRuntime(join(appOutDir, "resources"), {
+      nativeHost: false,
+    });
+
+    await assert.rejects(
+      verify(buildContext(appOutDir, "linux")),
+      /missing bundled pond-native-host/,
+    );
+  });
+});
+
+test("rejects a Linux package without the sharp runtime", async () => {
+  await withTemporaryDirectory(async (appOutDir) => {
+    await writeLinuxRuntime(join(appOutDir, "resources"), { sharp: false });
+
+    await assert.rejects(
+      verify(buildContext(appOutDir, "linux")),
+      /missing sharp linux-x64 runtime/,
     );
   });
 });

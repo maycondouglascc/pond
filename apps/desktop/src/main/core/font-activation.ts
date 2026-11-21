@@ -17,6 +17,8 @@ type FontPlatformDeps = {
   platform?: NodeJS.Platform;
   /** Runs reg.exe; injected so tests never touch the real registry. */
   runRegistry?: (args: string[]) => Promise<void>;
+  /** Runs fc-cache; injected so tests never touch the host fontconfig. */
+  runFcCache?: (fontsDir: string) => Promise<void>;
 };
 
 /** An absolute path keeps a planted reg.exe earlier on PATH from running. */
@@ -28,6 +30,12 @@ async function runRegistry(args: string[]): Promise<void> {
   await execFileAsync(regExecutable(), args, {
     windowsHide: true,
     timeout: 10_000,
+  });
+}
+
+async function runFcCache(fontsDir: string): Promise<void> {
+  await execFileAsync("fc-cache", ["-f", fontsDir], {
+    timeout: 30_000,
   });
 }
 
@@ -45,7 +53,11 @@ export async function activateFont(
     fontsDir: string;
   } & FontPlatformDeps,
 ): Promise<OkResult<{ path: string; requiresSignIn?: boolean }>> {
-  const { platform = process.platform, runRegistry: reg = runRegistry } = input;
+  const {
+    platform = process.platform,
+    runRegistry: reg = runRegistry,
+    runFcCache: fcCache = runFcCache,
+  } = input;
   // Per-user Windows fonts are only enumerated from the Fonts root.
   const pondDir =
     platform === "win32" ? input.fontsDir : join(input.fontsDir, "Pond");
@@ -71,6 +83,13 @@ export async function activateFont(
         await rm(dest, { force: true });
         throw error;
       }
+    } else if (platform === "linux") {
+      try {
+        await fcCache(pondDir);
+      } catch (error) {
+        await rm(dest, { force: true });
+        throw error;
+      }
     }
     // Windows loads per-user fonts at sign-in, so other apps see the font after that.
     return platform === "win32"
@@ -90,18 +109,24 @@ export async function deactivateFont(
     fontsDir: string;
   } & FontPlatformDeps,
 ): Promise<OkResult> {
-  const { platform = process.platform, runRegistry: reg = runRegistry } = input;
+  const {
+    platform = process.platform,
+    runRegistry: reg = runRegistry,
+    runFcCache: fcCache = runFcCache,
+  } = input;
   // Windows paths are case-insensitive.
   const normalize = (path: string) =>
     platform === "win32" ? path.toLowerCase() : path;
   const target = resolve(input.installedPath);
+  const pondDir =
+    platform === "win32"
+      ? resolve(input.fontsDir)
+      : resolve(join(input.fontsDir, "Pond"));
   if (platform === "win32") {
-    if (normalize(dirname(target)) !== normalize(resolve(input.fontsDir)))
+    if (normalize(dirname(target)) !== normalize(pondDir))
       return { ok: false, error: "outside_pond_fonts" };
-  } else {
-    const pondDir = resolve(join(input.fontsDir, "Pond"));
-    if (target === pondDir || !target.startsWith(`${pondDir}${sep}`))
-      return { ok: false, error: "outside_pond_fonts" };
+  } else if (target === pondDir || !target.startsWith(`${pondDir}${sep}`)) {
+    return { ok: false, error: "outside_pond_fonts" };
   }
   try {
     // Remove the file first: if an app holds it, the registration stays intact.
@@ -115,6 +140,8 @@ export async function deactivateFont(
         windowsFontValueName(target),
         "/f",
       ]).catch(() => {});
+    } else if (platform === "linux") {
+      await fcCache(pondDir).catch(() => {});
     }
     return { ok: true };
   } catch (error) {

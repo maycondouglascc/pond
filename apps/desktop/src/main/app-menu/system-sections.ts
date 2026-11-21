@@ -130,9 +130,7 @@ export function buildHelpSection(context: AppMenuContext): AppMenuItem {
       },
       { type: "separator" },
       {
-        label: context.isMac
-          ? "Show Logs in Finder"
-          : "Show Logs in File Explorer",
+        label: context.showLogsInFileManagerLabel,
         click: context.showLogs,
       },
     ],

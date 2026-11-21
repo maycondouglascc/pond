@@ -17,6 +17,10 @@ export interface AppMenuContext {
   };
   isMac: boolean;
   isPackaged: boolean;
+  /** Platform reveal label (Finder / File Explorer / File Manager). */
+  revealInFileManagerLabel: string;
+  /** Platform show-logs label. */
+  showLogsInFileManagerLabel: string;
   navTo: (path: string) => () => void;
   openExternalUrl: (url: string) => () => void;
   openLibraryWindow: () => void;

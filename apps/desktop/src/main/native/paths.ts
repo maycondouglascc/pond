@@ -88,5 +88,10 @@ export async function nativeSocketPath(
   if (sandbox) {
     return join(sandbox, "native.sock");
   }
+  if (platform === "linux") {
+    const configHome =
+      process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
+    return join(configHome, "Pond", "native.sock");
+  }
   return join(homedir(), "Library/Application Support/Pond", "native.sock");
 }

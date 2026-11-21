@@ -69,6 +69,18 @@ export function createAppMenuContext(deps: AppMenuRuntimeDeps): AppMenuContext {
     },
     isMac: process.platform === "darwin",
     isPackaged: app.isPackaged,
+    revealInFileManagerLabel:
+      process.platform === "darwin"
+        ? "Reveal in Finder"
+        : process.platform === "win32"
+          ? "Reveal in File Explorer"
+          : "Show in File Manager",
+    showLogsInFileManagerLabel:
+      process.platform === "darwin"
+        ? "Show Logs in Finder"
+        : process.platform === "win32"
+          ? "Show Logs in File Explorer"
+          : "Show Logs in File Manager",
     navTo,
     openExternalUrl: (url: string) => () => {
       void shell.openExternal(url);

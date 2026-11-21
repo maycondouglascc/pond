@@ -19,11 +19,13 @@ Download `Pond-X.Y.Z-x64.exe` from [GitHub Releases](https://github.com/raphaels
 
 The installer is not code-signed yet, so Windows SmartScreen may show "Windows protected your PC" on first run. Choose **More info**, then **Run anyway**. Windows on Arm is not built yet.
 
-Linux is on the [roadmap](ROADMAP.md).
+### Linux
+
+Download `Pond-X.Y.Z-x64.AppImage` or `Pond-X.Y.Z-x64.deb` from [GitHub Releases](https://github.com/raphaelsalaja/pond/releases). The AppImage runs without installing; mark it executable first (`chmod +x`). The deb installs on Debian and Ubuntu. Pond needs a 64-bit x86_64 desktop, and it updates itself from GitHub Releases. Linux on Arm is not built yet.
 
 ### Browser extension
 
-Saving from the web and connecting accounts in Sources both need the Pond extension. It works in Chrome, Brave, and Edge on macOS and Windows, and in Arc on macOS.
+Saving from the web and connecting accounts in Sources both need the Pond extension. It works in Chrome, Brave, and Edge on macOS, Windows, and Linux, and in Arc on macOS.
 
 1. In Pond, open the library menu at the top of the sidebar, choose **Browser Extension**, then click **Download**. A Pond Extension folder lands in Downloads. You can also download `pond-extension-X.Y.Z.zip` from the release, or build it from source with [`apps/extension/README.md`](apps/extension/README.md).
 2. Open `chrome://extensions`, turn on Developer mode, click **Load unpacked**, and choose the folder.
